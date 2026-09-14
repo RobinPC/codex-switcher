@@ -49,6 +49,8 @@ from inside the app.
 
 ### Build from Source
 
+For the complete PowerShell setup, security checks, output locations, installer build, and protected release procedure, see [BUILD_WINDOWS.md](BUILD_WINDOWS.md).
+
 #### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18+)

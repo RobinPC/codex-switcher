@@ -12,6 +12,19 @@ This fork deliberately does not install release artifacts from the upstream repo
 - GitHub Actions are pinned to full commit hashes. Dependabot proposes action updates for review.
 - Releases are built for Windows only and must originate from the current `main` commit with a tag matching the application version.
 
+## Automated checks versus human approval
+
+Every pull request into `main` automatically runs the following required checks:
+
+- `Build and test`
+- `Rust dependency audit`
+- `Dependency review`
+- `Security impact`
+
+The checks block a normal merge when they fail. The `Security impact` job identifies changed trust boundaries, but it does not determine whether the code is malicious. A human must still inspect every security-sensitive change before approving the pull request. A green workflow is evidence, not permission to merge or release.
+
+The protected `release` environment also requires a separate manual approval. Never approve it before confirming that the workflow is building the expected current `main` commit.
+
 ## Reviewing an upstream update
 
 1. Open the PR created by `Propose upstream update`.
