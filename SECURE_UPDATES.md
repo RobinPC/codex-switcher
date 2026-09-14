@@ -10,7 +10,7 @@ This fork deliberately does not install release artifacts from the upstream repo
 - Upstream commits are proposed as pull requests. They are never merged or released automatically.
 - Pull requests build the frontend, test the Rust backend, review dependency changes, and summarize security-sensitive files.
 - GitHub Actions are pinned to full commit hashes. Dependabot proposes action updates for review.
-- Releases are built for Windows only and must originate from a commit contained in `main`.
+- Releases are built for Windows only and must originate from the current `main` commit with a tag matching the application version.
 
 ## Reviewing an upstream update
 

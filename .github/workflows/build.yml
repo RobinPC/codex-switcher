@@ -46,11 +46,13 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify release commit is contained in main
+      - name: Verify release commit is current main
         shell: bash
         run: |
           git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          release_sha="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          main_sha="$(git rev-parse origin/main)"
+          test "$release_sha" = "$main_sha"
 
       - name: Audit frontend dependencies
         run: pnpm audit --audit-level high
@@ -67,21 +69,36 @@ jobs:
       - name: Determine tag
         id: tag
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$INPUT_VERSION"
           else
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            tag="$REF_NAME"
           fi
+          if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          expected="v$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          if [ "$tag" != "$expected" ]; then
+            echo "Release tag $tag does not match package version $expected" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Determine release note
         id: release_note
         shell: bash
         env:
+          EVENT_NAME: ${{ github.event_name }}
           INPUT_RELEASE_NOTE: ${{ inputs.release_note }}
           RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             note="$INPUT_RELEASE_NOTE"
           else
             remote_tag_ref="refs/release-tags/$RELEASE_TAG"
