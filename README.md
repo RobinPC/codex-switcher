@@ -35,24 +35,11 @@
 
 The easiest way to install Codex Switcher is from the latest GitHub release:
 
-[Download the latest release](https://github.com/Lampese/codex-switcher/releases/latest)
+[Download the latest release](https://github.com/RobinPC/codex-switcher/releases/latest)
 
-Choose the file for your platform:
+This hardened fork publishes Windows builds only. Choose either:
 
-- **macOS Apple Silicon:** `Codex.Switcher_*_aarch64.dmg`
-- **macOS Intel:** `Codex.Switcher_*_x64.dmg`
 - **Windows:** `Codex.Switcher_*_x64-setup.exe` or `Codex.Switcher_*_x64_en-US.msi`
-- **Linux Debian/Ubuntu:** `Codex.Switcher_*_amd64.deb`
-- **Linux AppImage:** `Codex.Switcher_*_amd64.AppImage`
-- **Linux RPM:** `Codex.Switcher-*-1.x86_64.rpm`
-
-> **macOS:** current release builds are not Apple-notarized. If macOS says the
-> app is damaged, move it to `/Applications` and remove the quarantine flag:
->
-> ```bash
-> sudo xattr -dr com.apple.quarantine "/Applications/Codex Switcher.app"
-> open "/Applications/Codex Switcher.app"
-> ```
 
 ### Auto Updates
 
@@ -70,7 +57,7 @@ from inside the app.
 
 ```bash
 # Clone the repository
-git clone https://github.com/Lampese/codex-switcher.git
+git clone https://github.com/RobinPC/codex-switcher.git
 cd codex-switcher
 
 # Install dependencies
@@ -88,22 +75,6 @@ pnpm tauri build
 > `tauri:win` script instead: `pnpm tauri:win dev` and `pnpm tauri:win build`.
 
 The built application will be in `src-tauri/target/release/bundle/`.
-
-### Run the Dashboard in a Browser
-
-You can also serve the built dashboard over HTTP instead of opening the Tauri shell.
-
-```bash
-# Build the frontend and start the web server on 0.0.0.0:3210
-pnpm lan
-```
-
-Optional environment variables:
-
-- `CODEX_SWITCHER_WEB_HOST` to override the bind host
-- `CODEX_SWITCHER_WEB_PORT` to override the port
-
-The browser dashboard serves the same UI and backend actions through `/api/invoke/*`, which makes it usable over LAN, Tailscale, or a remote host tunnel when you expose the chosen port safely.
 
 ## Usage and Reset Credits
 

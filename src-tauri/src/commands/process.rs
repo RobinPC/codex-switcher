@@ -1326,9 +1326,9 @@ fn find_windows_codex_shortcuts() -> Vec<std::path::PathBuf> {
 
 #[cfg(windows)]
 fn open_windows_shortcut(path: &std::path::Path) -> bool {
-    let mut command = Command::new("cmd.exe");
+    let mut command = Command::new("explorer.exe");
     command.creation_flags(CREATE_NO_WINDOW);
-    command.arg("/C").arg("start").arg("").arg(path);
+    command.arg(path);
     command_succeeds(&mut command)
 }
 

@@ -10,27 +10,12 @@ export async function invokeBackend<T>(
   command: string,
   args?: Record<string, unknown>
 ): Promise<T> {
-  if (isTauriRuntime()) {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return invoke<T>(command, args);
+  if (!isTauriRuntime()) {
+    throw new Error("Codex Switcher backend access is available only in the desktop app");
   }
 
-  const response = await fetch(`/api/invoke/${command}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args ?? {}),
-  });
-
-  const payload = await readJsonResponse(response);
-  if (!response.ok) {
-    const message =
-      typeof payload?.error === "string"
-        ? payload.error
-        : `Request failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  return payload as T;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<T>(command, args);
 }
 
 export async function openExternalUrl(url: string): Promise<void> {
@@ -59,29 +44,6 @@ export async function pickAuthJsonFile(): Promise<FileSource | null> {
   return pickBrowserFile(".json,application/json");
 }
 
-export async function exportFullBackupFile(): Promise<boolean> {
-  if (isTauriRuntime()) {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const selected = await save({
-      title: "Export Full Encrypted Account Config",
-      defaultPath: "codex-switcher-full.cswf",
-      filters: [{ name: "Codex Switcher Full Backup", extensions: ["cswf"] }],
-    });
-
-    if (!selected) return false;
-    await invokeBackend("export_accounts_full_encrypted_file", { path: selected });
-    return true;
-  }
-
-  const contentsBase64 = await invokeBackend<string>("export_accounts_full_encrypted_bytes");
-  downloadBase64File(
-    contentsBase64,
-    "codex-switcher-full.cswf",
-    "application/octet-stream"
-  );
-  return true;
-}
-
 export async function importFullBackupFile(): Promise<ImportAccountsSummary | null> {
   if (isTauriRuntime()) {
     const { open } = await import("@tauri-apps/plugin-dialog");
@@ -105,7 +67,6 @@ export async function importFullBackupFile(): Promise<ImportAccountsSummary | nu
     contentsBase64,
   });
 }
-
 export function describeFileSource(source: FileSource | null): string {
   if (!source) return "No file selected";
   return typeof source === "string" ? source : source.name;
@@ -121,30 +82,6 @@ async function fileToBase64(file: File): Promise<string> {
   }
 
   return window.btoa(binary);
-}
-
-function downloadBase64File(
-  base64: string,
-  fileName: string,
-  mimeType: string
-): void {
-  const binary = window.atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  const blob = new Blob([bytes], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 async function pickBrowserFile(accept: string): Promise<File | null> {
@@ -181,15 +118,4 @@ async function pickBrowserFile(accept: string): Promise<File | null> {
     window.addEventListener("focus", handleWindowFocus, { once: true });
     input.click();
   });
-}
-
-async function readJsonResponse(response: Response): Promise<any> {
-  const text = await response.text();
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { error: text };
-  }
 }

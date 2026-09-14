@@ -357,14 +357,6 @@ export function useAccounts() {
     }
   }, [loadAccounts, refreshUsage]);
 
-  const exportAccountsSlimText = useCallback(async () => {
-    try {
-      return await invokeBackend<string>("export_accounts_slim_text");
-    } catch (err) {
-      throw err;
-    }
-  }, []);
-
   const importAccountsSlimText = useCallback(
     async (payload: string) => {
       try {
@@ -379,17 +371,6 @@ export function useAccounts() {
       }
     },
     [loadAccounts, refreshUsage]
-  );
-
-  const exportAccountsFullEncryptedFile = useCallback(
-    async (path: string) => {
-      try {
-        await invokeBackend("export_accounts_full_encrypted_file", { path });
-      } catch (err) {
-        throw err;
-      }
-    },
-    []
   );
 
   const importAccountsFullEncryptedFile = useCallback(
@@ -486,9 +467,7 @@ export function useAccounts() {
     deleteAccount,
     renameAccount,
     importFromFile,
-    exportAccountsSlimText,
     importAccountsSlimText,
-    exportAccountsFullEncryptedFile,
     importAccountsFullEncryptedFile,
     startOAuthLogin,
     completeOAuthLogin,

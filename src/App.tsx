@@ -9,12 +9,7 @@ import type { CodexClosePreference } from "./lib/codexClosePreference";
 import { useForceCloseCodexProcesses } from "./hooks/useForceCloseCodexProcesses";
 import { AccountCard, AddAccountModal, UpdateChecker } from "./components";
 import type { AccountWithUsage, CodexProcessInfo, DockDisplayMode, UsageInfo } from "./types";
-import {
-  exportFullBackupFile,
-  importFullBackupFile,
-  isTauriRuntime,
-  invokeBackend,
-} from "./lib/platform";
+import { importFullBackupFile, isTauriRuntime, invokeBackend } from "./lib/platform";
 import {
   applyTheme,
   readStoredTheme,
@@ -179,7 +174,6 @@ function App() {
     deleteAccount,
     renameAccount,
     importFromFile,
-    exportAccountsSlimText,
     importAccountsSlimText,
     startOAuthLogin,
     completeOAuthLogin,
@@ -190,21 +184,15 @@ function App() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configModalMode, setConfigModalMode] = useState<"slim_export" | "slim_import">(
-    "slim_export"
-  );
   const [configPayload, setConfigPayload] = useState("");
   const [configModalError, setConfigModalError] = useState<string | null>(null);
-  const [configCopied, setConfigCopied] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [processInfo, setProcessInfo] = useState<CodexProcessInfo | null>(null);
   const [pendingSwitchAccountId, setPendingSwitchAccountId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOpeningCodex, setIsOpeningCodex] = useState(false);
-  const [isExportingSlim, setIsExportingSlim] = useState(false);
   const [isImportingSlim, setIsImportingSlim] = useState(false);
-  const [isExportingFull, setIsExportingFull] = useState(false);
   const [isImportingFull, setIsImportingFull] = useState(false);
   const [isWarmingAll, setIsWarmingAll] = useState(false);
   const [warmingUpId, setWarmingUpId] = useState<string | null>(null);
@@ -1127,33 +1115,9 @@ function App() {
     return `Timed: ${upcoming ?? timedWarmupTimes[0]}`;
   }, [timedWarmupEnabled, timedWarmupRunning, timedWarmupTimes]);
 
-  const handleExportSlimText = async () => {
-    setConfigModalMode("slim_export");
-    setConfigModalError(null);
-    setConfigPayload("");
-    setConfigCopied(false);
-    setIsConfigModalOpen(true);
-
-    try {
-      setIsExportingSlim(true);
-      const payload = await exportAccountsSlimText();
-      setConfigPayload(payload);
-      showWarmupToast(`Slim text exported (${accounts.length} accounts).`);
-    } catch (err) {
-      console.error("Failed to export slim text:", err);
-      const message = err instanceof Error ? err.message : String(err);
-      setConfigModalError(message);
-      showWarmupToast("Slim export failed", true);
-    } finally {
-      setIsExportingSlim(false);
-    }
-  };
-
   const openImportSlimTextModal = () => {
-    setConfigModalMode("slim_import");
     setConfigModalError(null);
     setConfigPayload("");
-    setConfigCopied(false);
     setIsConfigModalOpen(true);
   };
 
@@ -1179,20 +1143,6 @@ function App() {
       showWarmupToast("Slim import failed", true);
     } finally {
       setIsImportingSlim(false);
-    }
-  };
-
-  const handleExportFullFile = async () => {
-    try {
-      setIsExportingFull(true);
-      const exported = await exportFullBackupFile();
-      if (!exported) return;
-      showWarmupToast("Full encrypted file exported.");
-    } catch (err) {
-      console.error("Failed to export full encrypted file:", err);
-      showWarmupToast("Full export failed", true);
-    } finally {
-      setIsExportingFull(false);
     }
   };
 
@@ -1679,32 +1629,12 @@ function App() {
                     <button
                       onClick={() => {
                         setIsActionsMenuOpen(false);
-                        void handleExportSlimText();
-                      }}
-                      disabled={isExportingSlim}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-white dark:hover:bg-neutral-900"
-                    >
-                      {isExportingSlim ? "Exporting..." : "Export Slim Text"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsActionsMenuOpen(false);
                         openImportSlimTextModal();
                       }}
                       disabled={isImportingSlim}
                       className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-white dark:hover:bg-neutral-900"
                     >
                       {isImportingSlim ? "Importing..." : "Import Slim Text"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsActionsMenuOpen(false);
-                        void handleExportFullFile();
-                      }}
-                      disabled={isExportingFull}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 disabled:opacity-50 dark:text-white dark:hover:bg-neutral-900"
-                    >
-                      {isExportingFull ? "Exporting..." : "Export Full Encrypted File"}
                     </button>
                     <button
                       onClick={() => {
@@ -2159,13 +2089,13 @@ function App() {
         onCancelOAuth={cancelOAuthLogin}
       />
 
-      {/* Import/Export Config Modal */}
+      {/* Import Config Modal */}
       {isConfigModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl w-full max-w-2xl mx-4 shadow-xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-800">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {configModalMode === "slim_export" ? "Export Slim Text" : "Import Slim Text"}
+                Import Slim Text
               </h2>
               <button
                 onClick={() => setIsConfigModalOpen(false)}
@@ -2175,26 +2105,13 @@ function App() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              {configModalMode === "slim_import" ? (
-                <p className="text-sm text-amber-700 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-                  Existing accounts are kept. Only missing accounts are imported.
-                </p>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  This slim string contains account secrets. Keep it private.
-                </p>
-              )}
+              <p className="text-sm text-amber-700 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
+                Existing accounts are kept. Only missing accounts are imported.
+              </p>
               <textarea
                 value={configPayload}
                 onChange={(e) => setConfigPayload(e.target.value)}
-                readOnly={configModalMode === "slim_export"}
-                placeholder={
-                  configModalMode === "slim_export"
-                    ? isExportingSlim
-                      ? "Generating..."
-                      : "Export string will appear here"
-                    : "Paste config string here"
-                }
+                placeholder="Paste config string here"
                 className="w-full h-48 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-gray-500 focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-500 font-mono"
               />
               {configModalError && (
@@ -2210,32 +2127,13 @@ function App() {
               >
                 Close
               </button>
-              {configModalMode === "slim_export" ? (
-                <button
-                  onClick={async () => {
-                    if (!configPayload) return;
-                    try {
-                      await navigator.clipboard.writeText(configPayload);
-                      setConfigCopied(true);
-                      setTimeout(() => setConfigCopied(false), 1500);
-                    } catch {
-                      setConfigModalError("Clipboard unavailable. Please copy manually.");
-                    }
-                  }}
-                  disabled={!configPayload || isExportingSlim}
-                  className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 transition-colors disabled:opacity-50"
-                >
-                  {configCopied ? "Copied" : "Copy String"}
-                </button>
-              ) : (
-                <button
-                  onClick={handleImportSlimText}
-                  disabled={isImportingSlim}
-                  className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 transition-colors disabled:opacity-50"
-                >
-                  {isImportingSlim ? "Importing..." : "Import Missing Accounts"}
-                </button>
-              )}
+              <button
+                onClick={handleImportSlimText}
+                disabled={isImportingSlim}
+                className="px-4 py-2.5 text-sm font-medium rounded-lg bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 text-white dark:text-gray-900 transition-colors disabled:opacity-50"
+              >
+                {isImportingSlim ? "Importing..." : "Import Missing Accounts"}
+              </button>
             </div>
           </div>
         </div>

@@ -6,7 +6,7 @@ use crate::auth::{
     read_current_auth, remove_account, save_accounts, set_active_account, switch_to_account,
     sync_active_account_tokens, touch_account, AUTH_OPERATION_LOCK,
 };
-use crate::types::{AccountInfo, AccountsStore, AuthData, ImportAccountsSummary, StoredAccount};
+use crate::types::{AccountInfo, AccountsStore, ImportAccountsSummary, StoredAccount};
 
 use super::process::ensure_codex_not_running;
 
@@ -16,14 +16,13 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
     XChaCha20Poly1305, XNonce,
 };
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use flate2::read::ZlibDecoder;
 use futures::{stream, StreamExt};
 use pbkdf2::pbkdf2_hmac;
-use rand::RngCore;
 use sha2::Sha256;
 use std::collections::HashSet;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -41,7 +40,9 @@ const FULL_FILE_VERSION: u8 = 1;
 const FULL_SALT_LEN: usize = 16;
 const FULL_NONCE_LEN: usize = 24;
 const FULL_KDF_ITERATIONS: u32 = 210_000;
-const FULL_PRESET_PASSPHRASE: &str = "gT7kQ9mV2xN4pL8sR1dH6zW3cB5yF0uJ_aE7nK2tP9vM4rX1";
+// Compatibility only: this publicly known upstream passphrase decrypts existing
+// legacy backups. This hardened fork no longer creates credential exports.
+const LEGACY_FULL_IMPORT_PASSPHRASE: &str = "gT7kQ9mV2xN4pL8sR1dH6zW3cB5yF0uJ_aE7nK2tP9vM4rX1";
 
 const MAX_IMPORT_JSON_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_IMPORT_FILE_BYTES: u64 = 8 * 1024 * 1024;
@@ -207,14 +208,6 @@ pub async fn rename_account(account_id: String, new_name: String) -> Result<(), 
     Ok(())
 }
 
-/// Export minimal account config as a compact text string.
-/// For ChatGPT accounts, only refresh token is exported.
-#[tauri::command]
-pub async fn export_accounts_slim_text() -> Result<String, String> {
-    let store = load_accounts().map_err(|e| e.to_string())?;
-    encode_slim_payload_from_store(&store).map_err(|e| e.to_string())
-}
-
 /// Import minimal account config from a compact text string, skipping existing accounts.
 #[tauri::command]
 pub async fn import_accounts_slim_text(payload: String) -> Result<ImportAccountsSummary, String> {
@@ -242,29 +235,13 @@ pub async fn import_accounts_slim_text(payload: String) -> Result<ImportAccounts
     })
 }
 
-/// Export full account config as an encrypted file.
-#[tauri::command]
-pub async fn export_accounts_full_encrypted_file(path: String) -> Result<(), String> {
-    let store = load_accounts().map_err(|e| e.to_string())?;
-    let encrypted =
-        encode_full_encrypted_store(&store, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())?;
-    write_encrypted_file(&path, &encrypted).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-/// Export full account config as encrypted bytes for browser clients.
-pub async fn export_accounts_full_encrypted_bytes() -> Result<Vec<u8>, String> {
-    let store = load_accounts().map_err(|e| e.to_string())?;
-    encode_full_encrypted_store(&store, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())
-}
-
 /// Import full account config from an encrypted file, skipping existing accounts.
 #[tauri::command]
 pub async fn import_accounts_full_encrypted_file(
     path: String,
 ) -> Result<ImportAccountsSummary, String> {
     let encrypted = read_encrypted_file(&path).map_err(|e| e.to_string())?;
-    let imported = decode_full_encrypted_store(&encrypted, FULL_PRESET_PASSPHRASE)
+    let imported = decode_full_encrypted_store(&encrypted, LEGACY_FULL_IMPORT_PASSPHRASE)
         .map_err(|e| e.to_string())?;
     validate_imported_store(&imported).map_err(|e| e.to_string())?;
 
@@ -278,8 +255,8 @@ pub async fn import_accounts_full_encrypted_file(
 pub async fn import_accounts_full_encrypted_bytes(
     bytes: Vec<u8>,
 ) -> Result<ImportAccountsSummary, String> {
-    let imported =
-        decode_full_encrypted_store(&bytes, FULL_PRESET_PASSPHRASE).map_err(|e| e.to_string())?;
+    let imported = decode_full_encrypted_store(&bytes, LEGACY_FULL_IMPORT_PASSPHRASE)
+        .map_err(|e| e.to_string())?;
     validate_imported_store(&imported).map_err(|e| e.to_string())?;
 
     let current = load_accounts().map_err(|e| e.to_string())?;
@@ -351,49 +328,6 @@ fn find_antigravity_processes() -> anyhow::Result<Vec<u32>> {
     }
 
     Ok(pids)
-}
-
-fn encode_slim_payload_from_store(store: &AccountsStore) -> anyhow::Result<String> {
-    let active_name = store.active_account_id.as_ref().and_then(|active_id| {
-        store
-            .accounts
-            .iter()
-            .find(|account| account.id == *active_id)
-            .map(|account| account.name.clone())
-    });
-
-    let slim_accounts = store
-        .accounts
-        .iter()
-        .map(|account| match &account.auth_data {
-            AuthData::ApiKey { key } => SlimAccountPayload {
-                name: account.name.clone(),
-                auth_type: SLIM_AUTH_API_KEY,
-                api_key: Some(key.clone()),
-                refresh_token: None,
-            },
-            AuthData::ChatGPT { refresh_token, .. } => SlimAccountPayload {
-                name: account.name.clone(),
-                auth_type: SLIM_AUTH_CHATGPT,
-                api_key: None,
-                refresh_token: Some(refresh_token.clone()),
-            },
-        })
-        .collect();
-
-    let payload = SlimPayload {
-        version: SLIM_FORMAT_VERSION,
-        active_name,
-        accounts: slim_accounts,
-    };
-
-    let json = serde_json::to_vec(&payload).context("Failed to serialize slim payload")?;
-    let compressed = compress_bytes(&json).context("Failed to compress slim payload")?;
-
-    Ok(format!(
-        "{SLIM_EXPORT_PREFIX}{}",
-        URL_SAFE_NO_PAD.encode(compressed)
-    ))
 }
 
 fn decode_slim_payload(payload: &str) -> anyhow::Result<SlimPayload> {
@@ -550,32 +484,6 @@ async fn restore_slim_accounts(
     Ok(restored)
 }
 
-fn encode_full_encrypted_store(store: &AccountsStore, passphrase: &str) -> anyhow::Result<Vec<u8>> {
-    let json = serde_json::to_vec(store).context("Failed to serialize account store")?;
-    let compressed = compress_bytes(&json).context("Failed to compress account store")?;
-
-    let mut salt = [0u8; FULL_SALT_LEN];
-    rand::rng().fill_bytes(&mut salt);
-
-    let mut nonce = [0u8; FULL_NONCE_LEN];
-    rand::rng().fill_bytes(&mut nonce);
-
-    let key = derive_encryption_key(passphrase, &salt);
-    let cipher = XChaCha20Poly1305::new((&key).into());
-    let ciphertext = cipher
-        .encrypt(XNonce::from_slice(&nonce), compressed.as_slice())
-        .map_err(|_| anyhow::anyhow!("Failed to encrypt account store"))?;
-
-    let mut out = Vec::with_capacity(4 + 1 + FULL_SALT_LEN + FULL_NONCE_LEN + ciphertext.len());
-    out.extend_from_slice(FULL_FILE_MAGIC);
-    out.push(FULL_FILE_VERSION);
-    out.extend_from_slice(&salt);
-    out.extend_from_slice(&nonce);
-    out.extend_from_slice(&ciphertext);
-
-    Ok(out)
-}
-
 fn decode_full_encrypted_store(
     file_bytes: &[u8],
     passphrase: &str,
@@ -629,12 +537,6 @@ fn derive_encryption_key(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     key
 }
 
-fn compress_bytes(input: &[u8]) -> anyhow::Result<Vec<u8>> {
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
-    encoder.write_all(input)?;
-    encoder.finish().context("Failed to finalize compression")
-}
-
 fn decompress_bytes_with_limit(input: &[u8], max_bytes: u64) -> anyhow::Result<Vec<u8>> {
     let mut decoder = ZlibDecoder::new(input);
     let mut limited = decoder.by_ref().take(max_bytes + 1);
@@ -646,19 +548,6 @@ fn decompress_bytes_with_limit(input: &[u8], max_bytes: u64) -> anyhow::Result<V
     }
 
     Ok(decompressed)
-}
-
-fn write_encrypted_file(path: &str, bytes: &[u8]) -> anyhow::Result<()> {
-    fs::write(path, bytes).with_context(|| format!("Failed to write file: {path}"))?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-            .with_context(|| format!("Failed to set file permissions: {path}"))?;
-    }
-
-    Ok(())
 }
 
 fn read_encrypted_file(path: &str) -> anyhow::Result<Vec<u8>> {

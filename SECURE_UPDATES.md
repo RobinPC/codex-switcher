@@ -5,10 +5,12 @@ This fork deliberately does not install release artifacts from the upstream repo
 ## Trust boundaries
 
 - OAuth tokens and API keys are stored in the operating-system credential store. `accounts.json` contains metadata and empty credential fields only.
+- The hardened fork has no browser/LAN backend and exposes no credential-export commands. Legacy imports remain available only for migrating existing backups.
 - The release signing key is not stored in Git. GitHub receives it only through the protected `release` environment.
 - Upstream commits are proposed as pull requests. They are never merged or released automatically.
 - Pull requests build the frontend, test the Rust backend, review dependency changes, and summarize security-sensitive files.
 - GitHub Actions are pinned to full commit hashes. Dependabot proposes action updates for review.
+- Releases are built for Windows only and must originate from a commit contained in `main`.
 
 ## Reviewing an upstream update
 
