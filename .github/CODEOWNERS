@@ -1,0 +1,12 @@
+* @RobinPC
+
+# Security boundaries that always need an explicit owner review.
+/src-tauri/src/auth/ @RobinPC
+/src-tauri/src/commands/ @RobinPC
+/src-tauri/capabilities/ @RobinPC
+/src-tauri/tauri.conf.json @RobinPC
+/src-tauri/Cargo.toml @RobinPC
+/src-tauri/Cargo.lock @RobinPC
+/package.json @RobinPC
+/pnpm-lock.yaml @RobinPC
+/.github/workflows/ @RobinPC

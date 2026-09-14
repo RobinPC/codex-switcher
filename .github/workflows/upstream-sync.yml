@@ -1,0 +1,57 @@
+name: Propose upstream update
+
+on:
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  propose-update:
+    name: Open review pull request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Propose upstream changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_HEAD: Lampese:main
+        shell: bash
+        run: |
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head "$UPSTREAM_HEAD" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Upstream review PR #$existing is already open."
+            exit 0
+          fi
+
+          ahead="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$UPSTREAM_HEAD" --jq '.ahead_by')"
+          if [ "$ahead" = "0" ]; then
+            echo "Fork is already up to date."
+            exit 0
+          fi
+
+          gh label create upstream-update --repo "$GITHUB_REPOSITORY" --color BFDADC --description "Changes proposed from the official upstream repository" --force
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$UPSTREAM_HEAD" \
+            --label upstream-update \
+            --title "chore: review upstream update" \
+            --body "$(cat <<'EOF'
+          This PR imports new commits from `Lampese/codex-switcher` for controlled review.
+
+          Security checklist:
+
+          - [ ] The `Security impact` check has been reviewed.
+          - [ ] New or changed network endpoints are expected.
+          - [ ] Authentication, credential storage, logging, and exports do not expose secrets.
+          - [ ] Tauri capabilities and process execution remain least-privilege.
+          - [ ] The updater still targets `RobinPC/codex-switcher` and retains the fork public key.
+          - [ ] Dependency review and build/tests pass.
+          - [ ] A release is approved only after this PR is merged.
+
+          Do not merge this PR solely because the automated checks are green; inspect the sensitive diff first.
+          EOF
+          )"
