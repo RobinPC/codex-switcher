@@ -1,7 +1,7 @@
 {
   "name": "codex-switcher",
   "private": true,
-  "version": "0.2.18",
+  "version": "0.2.20",
   "packageManager": "pnpm@12.3.4",
   "description": "A multi-account manager for Codex CLI",
   "type": "module",
@@ -21,7 +21,10 @@
     "release": "node scripts/release.mjs",
     "release:patch": "node scripts/release.mjs patch",
     "release:minor": "node scripts/release.mjs minor",
-    "release:major": "node scripts/release.mjs major"
+    "release:major": "node scripts/release.mjs major",
+    "test:browser-runtime": "node --experimental-strip-types --test tests/browserRuntime.test.ts",
+    "test:updater": "node --experimental-strip-types --test tests/updateInstallation.test.ts tests/updaterToolchain.test.ts",
+    "test": "node --experimental-strip-types --test tests/*.test.*"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",
