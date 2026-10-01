@@ -37,6 +37,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --base main \
             --head "$UPSTREAM_HEAD" \
+            --no-maintainer-edit \
             --label upstream-update \
             --title "chore: review upstream update" \
             --body "$(cat <<'EOF'
